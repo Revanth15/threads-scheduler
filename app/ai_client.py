@@ -22,7 +22,7 @@ class AIClient:
         }
 
     async def _call(self, messages: list, max_tokens: int = 1000, temperature: float = 0.8) -> str:
-        async with httpx.AsyncClient(timeout=60.0) as client:
+        async with httpx.AsyncClient(timeout=120.0) as client:
             response = await client.post(
                 f"{OPENROUTER_BASE}/chat/completions",
                 headers=self.headers,
@@ -36,7 +36,30 @@ class AIClient:
             data = response.json()
             if response.status_code != 200:
                 raise Exception(f"OpenRouter API error: {data}")
-            return data["choices"][0]["message"]["content"]
+
+            choices = data.get("choices")
+            if not choices:
+                logger.error(f"OpenRouter returned no choices: {data}")
+                raise Exception(f"OpenRouter returned no choices: {json.dumps(data)[:500]}")
+
+            message = choices[0].get("message", {})
+            content = message.get("content")
+
+            # Some models (e.g. DeepSeek) return reasoning in a separate field
+            # with content set to null. Fall back to reasoning_content if available.
+            if content is None:
+                content = message.get("reasoning_content")
+                logger.warning(f"OpenRouter content was null, fell back to reasoning_content")
+
+            if content is None:
+                logger.error(f"OpenRouter returned null content. Full response: {json.dumps(data)[:500]}")
+                raise Exception(
+                    f"OpenRouter returned null content for model {self.model}. "
+                    f"Finish reason: {choices[0].get('finish_reason', 'unknown')}. "
+                    f"This can happen with reasoning models — try a different model."
+                )
+
+            return content
 
     async def generate_post(
         self,
@@ -140,6 +163,15 @@ Respond with ONLY a JSON object like this:
         ])
 
         # Parse JSON from response
+        if not raw:
+            logger.error("AI returned empty content for post generation")
+            return {
+                "post_text": f"{topic.title}\n\n#BusSing #Singapore",
+                "hashtags": ["#BusSing", "#Singapore"],
+                "hook_type": "statement",
+                "estimated_engagement": "low"
+            }
+
         try:
             cleaned = re.sub(r"```json|```", "", raw).strip()
             return json.loads(cleaned)
@@ -200,6 +232,9 @@ Provide a comprehensive analysis as JSON with this structure:
             temperature=0.3
         )
 
+        if not raw:
+            return {"executive_summary": "AI returned empty response", "error": "No content from AI model"}
+
         try:
             cleaned = re.sub(r"```json|```", "", raw).strip()
             return json.loads(cleaned)
@@ -257,25 +292,39 @@ Return a JSON array of {total_posts} objects:
 
         raw = await self._call(
             [{"role": "user", "content": user_prompt}],
-            max_tokens=2000,
+            max_tokens=4000,
             temperature=0.4
         )
 
+        if not raw:
+            logger.warning("AI returned empty response for weekly schedule, using fallback rotation")
+            return self._fallback_schedule(topics, posts_per_day)
+
         try:
             cleaned = re.sub(r"```json|```", "", raw).strip()
+            # Handle case where response contains text before/after JSON array
+            bracket_start = cleaned.find("[")
+            bracket_end = cleaned.rfind("]")
+            if bracket_start != -1 and bracket_end != -1:
+                cleaned = cleaned[bracket_start:bracket_end + 1]
             return json.loads(cleaned)
-        except json.JSONDecodeError:
-            # Fallback: simple rotation
-            schedule = []
-            for day in range(1, 8):
-                for slot in ["morning", "evening"]:
-                    idx = ((day - 1) * 2 + (0 if slot == "morning" else 1)) % len(topics)
-                    schedule.append({
-                        "day": day,
-                        "slot": slot,
-                        "topic_id": topics[idx].id,
-                        "rationale": "Auto-assigned"
-                    })
-            return schedule
+        except (json.JSONDecodeError, ValueError) as e:
+            logger.warning(f"Failed to parse AI schedule response: {e}. Using fallback rotation.")
+            return self._fallback_schedule(topics, posts_per_day)
+
+    def _fallback_schedule(self, topics: list[ContentTopic], posts_per_day: int = 5) -> list[dict]:
+        """Generate a simple rotation schedule when AI fails."""
+        slot_types = ["morning_commute", "midday", "lunch", "evening_commute", "night"]
+        schedule = []
+        for day in range(1, 8):
+            for slot_idx in range(posts_per_day):
+                idx = ((day - 1) * posts_per_day + slot_idx) % len(topics)
+                schedule.append({
+                    "day": day,
+                    "slot": slot_types[slot_idx % len(slot_types)],
+                    "topic_id": topics[idx].id,
+                    "rationale": "Auto-assigned (fallback)"
+                })
+        return schedule
 
 ai_client = AIClient()
