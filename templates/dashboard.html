@@ -1,0 +1,1218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Threads Scheduler</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Cabinet+Grotesk:wght@400;500;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #111118;
+    --surface2: #1a1a24;
+    --border: #2a2a3a;
+    --accent: #7c6aff;
+    --accent2: #ff6a9b;
+    --accent3: #6affd4;
+    --text: #e8e8f0;
+    --muted: #6b6b80;
+    --success: #4ade80;
+    --warning: #fbbf24;
+    --danger: #f87171;
+    --mono: 'DM Mono', monospace;
+    --sans: 'Cabinet Grotesk', sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    display: flex;
+  }
+
+  /* Sidebar */
+  .sidebar {
+    width: 220px;
+    min-height: 100vh;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    padding: 24px 16px;
+    position: fixed;
+    top: 0; left: 0; bottom: 0;
+  }
+
+  .logo {
+    font-size: 18px;
+    font-weight: 800;
+    margin-bottom: 32px;
+    padding: 0 8px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    letter-spacing: -0.5px;
+  }
+
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--muted);
+    transition: all 0.15s;
+    margin-bottom: 2px;
+    border: none;
+    background: none;
+    width: 100%;
+    text-align: left;
+  }
+
+  .nav-item:hover { background: var(--surface2); color: var(--text); }
+  .nav-item.active { background: rgba(124, 106, 255, 0.15); color: var(--accent); }
+
+  .nav-icon { font-size: 16px; }
+
+  .sidebar-bottom {
+    margin-top: auto;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+  }
+
+  .status-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--success);
+    display: inline-block;
+    margin-right: 6px;
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  /* Main content */
+  .main {
+    margin-left: 220px;
+    flex: 1;
+    padding: 32px;
+    max-width: calc(100vw - 220px);
+  }
+
+  .page { display: none; }
+  .page.active { display: block; }
+
+  .page-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 28px;
+  }
+
+  .page-title {
+    font-size: 24px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+  }
+
+  .page-sub { color: var(--muted); font-size: 14px; margin-top: 2px; }
+
+  /* Cards */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+  }
+
+  .card-title {
+    font-size: 13px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--muted);
+    margin-bottom: 12px;
+  }
+
+  /* Stats grid */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .stat-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+  }
+
+  .stat-card:nth-child(1)::before { background: var(--accent); }
+  .stat-card:nth-child(2)::before { background: var(--accent2); }
+  .stat-card:nth-child(3)::before { background: var(--accent3); }
+  .stat-card:nth-child(4)::before { background: var(--warning); }
+
+  .stat-label { font-size: 12px; color: var(--muted); font-weight: 500; margin-bottom: 8px; }
+  .stat-value { font-size: 28px; font-weight: 800; letter-spacing: -1px; }
+  .stat-sub { font-size: 12px; color: var(--muted); margin-top: 4px; }
+
+  /* Posts grid */
+  .posts-grid {
+    display: grid;
+    gap: 12px;
+  }
+
+  .post-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 16px;
+    align-items: start;
+    transition: border-color 0.15s;
+  }
+
+  .post-card:hover { border-color: var(--accent); }
+
+  .post-time {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--muted);
+    min-width: 80px;
+    padding-top: 2px;
+  }
+
+  .post-slot {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 4px;
+    margin-bottom: 6px;
+  }
+
+  .post-slot.morning { background: rgba(251,191,36,0.15); color: var(--warning); }
+  .post-slot.evening { background: rgba(124,106,255,0.15); color: var(--accent); }
+  .post-slot.manual { background: rgba(106,255,212,0.15); color: var(--accent3); }
+
+  .post-content {
+    font-size: 14px;
+    line-height: 1.5;
+    color: var(--text);
+  }
+
+  .post-topic {
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 6px;
+    font-family: var(--mono);
+  }
+
+  .post-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    align-items: flex-end;
+  }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 20px;
+  }
+
+  .badge.pending { background: rgba(251,191,36,0.15); color: var(--warning); }
+  .badge.published { background: rgba(74,222,128,0.15); color: var(--success); }
+  .badge.failed { background: rgba(248,113,113,0.15); color: var(--danger); }
+  .badge.skipped { background: rgba(107,107,128,0.15); color: var(--muted); }
+
+  .post-metrics {
+    display: flex;
+    gap: 12px;
+    font-size: 12px;
+    color: var(--muted);
+    font-family: var(--mono);
+    margin-top: 6px;
+  }
+
+  .metric-item span { color: var(--text); font-weight: 600; }
+
+  /* Buttons */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    font-family: var(--sans);
+    cursor: pointer;
+    border: none;
+    transition: all 0.15s;
+  }
+
+  .btn-primary {
+    background: var(--accent);
+    color: white;
+  }
+  .btn-primary:hover { background: #6b5aee; transform: translateY(-1px); }
+
+  .btn-secondary {
+    background: var(--surface2);
+    color: var(--text);
+    border: 1px solid var(--border);
+  }
+  .btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
+
+  .btn-danger {
+    background: rgba(248,113,113,0.15);
+    color: var(--danger);
+    border: 1px solid rgba(248,113,113,0.3);
+  }
+
+  .btn-sm { padding: 5px 10px; font-size: 12px; }
+
+  /* Analysis */
+  .analysis-section {
+    background: var(--surface2);
+    border-radius: 10px;
+    padding: 20px;
+    margin-top: 16px;
+  }
+
+  .analysis-section h4 {
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--accent);
+    margin-bottom: 10px;
+  }
+
+  .analysis-section p, .analysis-section li {
+    font-size: 14px;
+    color: var(--text);
+    line-height: 1.6;
+  }
+
+  .analysis-section ul { padding-left: 18px; }
+  .analysis-section ul li { margin-bottom: 4px; }
+
+  /* Form */
+  .form-group { margin-bottom: 16px; }
+  .form-label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; color: var(--muted); }
+
+  .form-input, .form-textarea, .form-select {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 14px;
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 14px;
+    transition: border-color 0.15s;
+  }
+
+  .form-input:focus, .form-textarea:focus, .form-select:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+
+  .form-textarea { min-height: 100px; resize: vertical; }
+
+  /* Upload zone */
+  .upload-zone {
+    border: 2px dashed var(--border);
+    border-radius: 12px;
+    padding: 40px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .upload-zone:hover { border-color: var(--accent); background: rgba(124,106,255,0.05); }
+  .upload-zone-icon { font-size: 32px; margin-bottom: 12px; }
+  .upload-zone-text { font-size: 14px; color: var(--muted); }
+
+  /* Tabs */
+  .tabs { display: flex; gap: 4px; margin-bottom: 20px; border-bottom: 1px solid var(--border); }
+  .tab {
+    padding: 10px 16px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--muted);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all 0.15s;
+    border-top: none; border-left: none; border-right: none;
+    background: none;
+    font-family: var(--sans);
+    margin-bottom: -1px;
+  }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  /* Toast */
+  .toast-container {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    z-index: 9999;
+  }
+
+  .toast {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 16px;
+    font-size: 14px;
+    max-width: 340px;
+    animation: slideIn 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .toast.success { border-color: var(--success); }
+  .toast.error { border-color: var(--danger); }
+
+  @keyframes slideIn {
+    from { transform: translateX(20px); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+  }
+
+  /* Loading */
+  .loading {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--muted);
+    font-size: 14px;
+    padding: 20px 0;
+  }
+
+  .spinner {
+    width: 18px; height: 18px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Schedule header */
+  .schedule-controls {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+
+  .filter-select {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 12px;
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 14px;
+  }
+
+  /* Recommendation chips */
+  .recommendation {
+    background: rgba(124, 106, 255, 0.08);
+    border: 1px solid rgba(124, 106, 255, 0.2);
+    border-radius: 8px;
+    padding: 12px 16px;
+    font-size: 14px;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .rec-num {
+    background: var(--accent);
+    color: white;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 700;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .three-col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+
+  .text-success { color: var(--success); }
+  .text-danger { color: var(--danger); }
+  .text-muted { color: var(--muted); }
+  .text-accent { color: var(--accent); }
+  .mt-16 { margin-top: 16px; }
+  .mb-16 { margin-bottom: 16px; }
+  .gap-8 { display: flex; gap: 8px; }
+</style>
+</head>
+<body>
+
+<aside class="sidebar">
+  <div class="logo">⟡ Threads<br>Scheduler</div>
+
+  <nav>
+    <button class="nav-item active" onclick="showPage('dashboard')">
+      <span class="nav-icon">◈</span> Dashboard
+    </button>
+    <button class="nav-item" onclick="showPage('schedule')">
+      <span class="nav-icon">◷</span> Schedule
+    </button>
+    <button class="nav-item" onclick="showPage('content')">
+      <span class="nav-icon">◧</span> Content
+    </button>
+    <button class="nav-item" onclick="showPage('analytics')">
+      <span class="nav-icon">◎</span> Analytics
+    </button>
+    <button class="nav-item" onclick="showPage('settings')">
+      <span class="nav-icon">◈</span> Settings
+    </button>
+  </nav>
+
+  <div class="sidebar-bottom">
+    <div style="font-size: 12px; color: var(--muted); padding: 8px 12px;">
+      <span class="status-dot"></span>Scheduler active
+    </div>
+  </div>
+</aside>
+
+<main class="main">
+
+  <!-- DASHBOARD PAGE -->
+  <div class="page active" id="page-dashboard">
+    <div class="page-header">
+      <div>
+        <div class="page-title">Dashboard</div>
+        <div class="page-sub">Your Threads posting command center</div>
+      </div>
+      <div class="gap-8">
+        <button class="btn btn-secondary" onclick="refreshMetrics()">↻ Refresh Metrics</button>
+        <button class="btn btn-primary" onclick="showPage('schedule')">+ Generate Week</button>
+      </div>
+    </div>
+
+    <div class="stats-grid" id="stats-grid">
+      <div class="stat-card">
+        <div class="stat-label">Total Published</div>
+        <div class="stat-value" id="stat-published">—</div>
+        <div class="stat-sub">posts on Threads</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Total Likes</div>
+        <div class="stat-value" id="stat-likes">—</div>
+        <div class="stat-sub">across all posts</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Total Views</div>
+        <div class="stat-value" id="stat-views">—</div>
+        <div class="stat-sub">impressions</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Avg Engagement</div>
+        <div class="stat-value" id="stat-engagement">—</div>
+        <div class="stat-sub">engagement rate</div>
+      </div>
+    </div>
+
+    <div class="two-col">
+      <div>
+        <div class="card">
+          <div class="card-title">Upcoming Posts</div>
+          <div id="upcoming-posts"><div class="loading"><div class="spinner"></div>Loading...</div></div>
+        </div>
+      </div>
+      <div>
+        <div class="card">
+          <div class="card-title">Top Performing Posts</div>
+          <div id="top-posts"><div class="loading"><div class="spinner"></div>Loading...</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SCHEDULE PAGE -->
+  <div class="page" id="page-schedule">
+    <div class="page-header">
+      <div>
+        <div class="page-title">Schedule</div>
+        <div class="page-sub">View and manage your post queue</div>
+      </div>
+      <div class="gap-8">
+        <select class="filter-select" id="status-filter" onchange="loadPosts()">
+          <option value="">All posts</option>
+          <option value="pending">Pending</option>
+          <option value="published">Published</option>
+          <option value="failed">Failed</option>
+        </select>
+        <button class="btn btn-primary" onclick="generateSchedule()">⚡ Generate Week</button>
+      </div>
+    </div>
+
+    <div id="generate-status" style="display:none" class="card mb-16">
+      <div class="loading"><div class="spinner"></div><span id="gen-status-text">Generating posts with AI…</span></div>
+    </div>
+
+    <div id="posts-container">
+      <div class="loading"><div class="spinner"></div>Loading posts...</div>
+    </div>
+  </div>
+
+  <!-- CONTENT PAGE -->
+  <div class="page" id="page-content">
+    <div class="page-header">
+      <div>
+        <div class="page-title">Content Library</div>
+        <div class="page-sub">Manage your topics and markdown file</div>
+      </div>
+    </div>
+
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab('upload', this)">Upload Markdown</button>
+      <button class="tab" onclick="switchTab('topics', this)">Topics Library</button>
+      <button class="tab" onclick="switchTab('new-topic', this)">Add Topic</button>
+    </div>
+
+    <!-- Upload tab -->
+    <div id="tab-upload">
+      <div class="two-col">
+        <div>
+          <div class="upload-zone" id="drop-zone" onclick="document.getElementById('md-file').click()">
+            <div class="upload-zone-icon">📄</div>
+            <div style="font-weight: 700; margin-bottom: 4px;">Drop your content.md here</div>
+            <div class="upload-zone-text">or click to browse · .md files only</div>
+            <input type="file" id="md-file" accept=".md" style="display:none" onchange="uploadMarkdown(this)">
+          </div>
+          <button class="btn btn-secondary mt-16" style="width:100%" onclick="reloadMarkdown()">
+            ↺ Reload from disk (content.md)
+          </button>
+        </div>
+        <div class="card">
+          <div class="card-title">Markdown Format</div>
+          <pre style="font-family: var(--mono); font-size: 12px; color: var(--muted); line-height: 1.7; white-space: pre-wrap;"># My App / Product Name
+
+## Feature Announcements
+
+### Post Scheduling
+Describe the feature here in detail.
+All the bullet points, key benefits, etc.
+
+Tags: #scheduling #automation
+Priority: high
+
+### AI Content Generation
+Another topic...
+
+Priority: medium
+
+## Tips & Tutorials
+
+### Getting Started Guide
+Content here...
+
+Priority: low</pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- Topics tab -->
+    <div id="tab-topics" style="display:none">
+      <div id="topics-container">
+        <div class="loading"><div class="spinner"></div>Loading topics...</div>
+      </div>
+    </div>
+
+    <!-- New topic tab -->
+    <div id="tab-new-topic" style="display:none">
+      <div class="card" style="max-width: 600px;">
+        <div class="card-title">Add New Topic</div>
+        <div class="form-group">
+          <label class="form-label">Title</label>
+          <input class="form-input" id="new-title" placeholder="e.g. AI-powered analytics dashboard">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Category</label>
+          <input class="form-input" id="new-category" placeholder="e.g. Features, Tips, Updates">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Content / Context</label>
+          <textarea class="form-textarea" id="new-content" placeholder="Provide details, key points, benefits, angle to take..."></textarea>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Priority (1=low, 2=medium, 3=high)</label>
+          <select class="form-select" id="new-priority">
+            <option value="1">1 — Low</option>
+            <option value="2" selected>2 — Medium</option>
+            <option value="3">3 — High</option>
+          </select>
+        </div>
+        <button class="btn btn-primary" onclick="createTopic()">Add Topic</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ANALYTICS PAGE -->
+  <div class="page" id="page-analytics">
+    <div class="page-header">
+      <div>
+        <div class="page-title">Analytics</div>
+        <div class="page-sub">AI-powered performance insights</div>
+      </div>
+      <button class="btn btn-primary" onclick="runWeeklyAnalysis()">🧠 Run AI Analysis</button>
+    </div>
+
+    <div id="analysis-loading" style="display:none" class="card mb-16">
+      <div class="loading"><div class="spinner"></div>Running AI analysis on your posts... this may take 30 seconds.</div>
+    </div>
+
+    <div id="latest-analysis"></div>
+
+    <div class="mt-16">
+      <div class="card">
+        <div class="card-title">Analysis History</div>
+        <div id="analysis-history"><div class="loading"><div class="spinner"></div>Loading...</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SETTINGS PAGE -->
+  <div class="page" id="page-settings">
+    <div class="page-header">
+      <div>
+        <div class="page-title">Settings</div>
+        <div class="page-sub">API credentials and scheduler config</div>
+      </div>
+    </div>
+
+    <div class="two-col">
+      <div>
+        <div class="card mb-16">
+          <div class="card-title">Connection Status</div>
+          <div id="connection-status">
+            <div class="loading"><div class="spinner"></div>Checking...</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Quick Actions</div>
+          <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 8px;">
+            <button class="btn btn-secondary" onclick="testConnection()">🔌 Test Threads Connection</button>
+            <button class="btn btn-secondary" onclick="refreshMetrics()">↻ Refresh All Metrics</button>
+            <button class="btn btn-secondary" onclick="runWeeklyAnalysis()">🧠 Run Weekly Analysis</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Configuration</div>
+        <p style="font-size: 13px; color: var(--muted); line-height: 1.6; margin-bottom: 16px;">
+          Edit your <code style="background: var(--surface2); padding: 2px 6px; border-radius: 4px; font-family: var(--mono);">.env</code> file to configure credentials. Restart the app after changes.
+        </p>
+        <div class="analysis-section">
+          <h4>Required Settings</h4>
+          <ul style="font-family: var(--mono); font-size: 13px; line-height: 2;">
+            <li>THREADS_ACCESS_TOKEN</li>
+            <li>THREADS_USER_ID</li>
+            <li>OPENROUTER_API_KEY</li>
+          </ul>
+        </div>
+        <div class="analysis-section mt-16">
+          <h4>Schedule Settings</h4>
+          <ul style="font-family: var(--mono); font-size: 13px; line-height: 2;">
+            <li>TIMEZONE=Asia/Singapore</li>
+            <li>MORNING_POST_HOUR=8</li>
+            <li>EVENING_POST_HOUR=18</li>
+            <li>OPENROUTER_MODEL=anthropic/claude-3.5-sonnet</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<div class="toast-container" id="toast-container"></div>
+
+<script>
+const API = '';
+
+// Navigation
+function showPage(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById(`page-${name}`).classList.add('active');
+  event.currentTarget.classList.add('active');
+
+  if (name === 'dashboard') loadDashboard();
+  if (name === 'schedule') loadPosts();
+  if (name === 'content') loadTopics();
+  if (name === 'analytics') loadAnalytics();
+  if (name === 'settings') testConnection();
+}
+
+// Toast notifications
+function toast(msg, type = 'success') {
+  const container = document.getElementById('toast-container');
+  const el = document.createElement('div');
+  el.className = `toast ${type}`;
+  el.innerHTML = `<span>${type === 'success' ? '✓' : '✕'}</span> ${msg}`;
+  container.appendChild(el);
+  setTimeout(() => el.remove(), 4000);
+}
+
+// API helper
+async function api(path, opts = {}) {
+  const res = await fetch(API + path, {
+    headers: { 'Content-Type': 'application/json', ...opts.headers },
+    ...opts,
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.detail || data.error || 'API error');
+  return data;
+}
+
+// Dashboard
+async function loadDashboard() {
+  try {
+    const [overview, upcoming, topPosts] = await Promise.all([
+      api('/api/analytics/overview'),
+      api('/api/posts/?status=pending&limit=5'),
+      api('/api/analytics/top-posts?limit=5'),
+    ]);
+
+    document.getElementById('stat-published').textContent = overview.published_posts;
+    document.getElementById('stat-likes').textContent = fmt(overview.total_likes);
+    document.getElementById('stat-views').textContent = fmt(overview.total_views);
+    document.getElementById('stat-engagement').textContent = overview.avg_engagement_rate.toFixed(1) + '%';
+
+    // Upcoming posts
+    const upEl = document.getElementById('upcoming-posts');
+    if (!upcoming.length) {
+      upEl.innerHTML = `<div class="text-muted" style="font-size:14px; padding: 16px 0;">No pending posts. <button class="btn btn-primary btn-sm" onclick="showPage('schedule')">Generate Week</button></div>`;
+    } else {
+      upEl.innerHTML = upcoming.map(p => `
+        <div style="padding: 10px 0; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: flex-start;">
+          <div>
+            <span class="post-slot ${p.post_type}">${p.post_type}</span>
+            <div style="font-size: 13px; margin-top: 4px;">${p.content.substring(0, 80)}...</div>
+            <div class="post-topic">${formatDate(p.scheduled_at)}</div>
+          </div>
+          <span class="badge ${p.status}">${p.status}</span>
+        </div>
+      `).join('');
+    }
+
+    // Top posts
+    const topEl = document.getElementById('top-posts');
+    if (!topPosts.length) {
+      topEl.innerHTML = `<div class="text-muted" style="font-size: 14px; padding: 16px 0;">No metrics yet. <button class="btn btn-secondary btn-sm" onclick="refreshMetrics()">Refresh Metrics</button></div>`;
+    } else {
+      topEl.innerHTML = topPosts.map(p => `
+        <div style="padding: 10px 0; border-bottom: 1px solid var(--border);">
+          <div style="font-size: 13px; margin-bottom: 6px;">${p.content.substring(0, 80)}...</div>
+          <div class="post-metrics">
+            <div class="metric-item">❤️ <span>${p.likes}</span></div>
+            <div class="metric-item">👁 <span>${fmt(p.views)}</span></div>
+            <div class="metric-item">📊 <span>${p.engagement_rate.toFixed(1)}%</span></div>
+          </div>
+        </div>
+      `).join('');
+    }
+  } catch(e) {
+    toast('Failed to load dashboard: ' + e.message, 'error');
+  }
+}
+
+// Schedule / Posts
+async function loadPosts() {
+  const status = document.getElementById('status-filter')?.value || '';
+  const container = document.getElementById('posts-container');
+  if (!container) return;
+  container.innerHTML = '<div class="loading"><div class="spinner"></div>Loading posts...</div>';
+
+  try {
+    const posts = await api(`/api/posts/?${status ? 'status=' + status : ''}&limit=100`);
+    if (!posts.length) {
+      container.innerHTML = `
+        <div class="card" style="text-align: center; padding: 40px;">
+          <div style="font-size: 32px; margin-bottom: 12px;">📭</div>
+          <div style="font-size: 16px; font-weight: 700; margin-bottom: 8px;">No posts yet</div>
+          <div class="text-muted" style="font-size: 14px; margin-bottom: 20px;">Generate your weekly schedule to get started.</div>
+          <button class="btn btn-primary" onclick="generateSchedule()">⚡ Generate This Week's Posts</button>
+        </div>`;
+      return;
+    }
+
+    container.innerHTML = `<div class="posts-grid">${posts.map(p => `
+      <div class="post-card">
+        <div class="post-time">
+          ${formatDate(p.scheduled_at)}<br>
+          ${formatTime(p.scheduled_at)}
+        </div>
+        <div>
+          <span class="post-slot ${p.post_type}">${p.post_type}</span>
+          <div class="post-content">${p.content.substring(0, 200)}${p.content.length > 200 ? '…' : ''}</div>
+          <div class="post-topic">${p.topic || ''}</div>
+          ${p.metrics ? `
+          <div class="post-metrics">
+            <div class="metric-item">❤️ <span>${p.metrics.likes}</span></div>
+            <div class="metric-item">💬 <span>${p.metrics.replies}</span></div>
+            <div class="metric-item">🔁 <span>${p.metrics.reposts}</span></div>
+            <div class="metric-item">👁 <span>${fmt(p.metrics.views)}</span></div>
+            <div class="metric-item">📊 <span>${p.metrics.engagement_rate.toFixed(1)}%</span></div>
+          </div>` : ''}
+        </div>
+        <div class="post-actions">
+          <span class="badge ${p.status}">${p.status}</span>
+          ${p.status === 'pending' ? `<button class="btn btn-secondary btn-sm" onclick="publishNow(${p.id})">Publish Now</button>` : ''}
+          ${p.status !== 'published' ? `<button class="btn btn-danger btn-sm" onclick="deletePost(${p.id})">Delete</button>` : ''}
+        </div>
+      </div>
+    `).join('')}</div>`;
+  } catch(e) {
+    container.innerHTML = `<div class="text-danger">Error: ${e.message}</div>`;
+  }
+}
+
+async function generateSchedule() {
+  const statusDiv = document.getElementById('generate-status');
+  const statusText = document.getElementById('gen-status-text');
+  statusDiv.style.display = 'block';
+  statusText.textContent = 'Generating posts with AI… this may take 1-2 minutes.';
+
+  try {
+    const result = await api('/api/posts/generate-schedule/sync', { method: 'POST', body: JSON.stringify({ week_offset: 0 }) });
+    if (result.error) {
+      toast(result.error, 'error');
+    } else {
+      toast(`✅ ${result.message}`, 'success');
+      await loadPosts();
+    }
+  } catch(e) {
+    toast('Failed to generate schedule: ' + e.message, 'error');
+  } finally {
+    statusDiv.style.display = 'none';
+  }
+}
+
+async function publishNow(postId) {
+  try {
+    const result = await api(`/api/posts/${postId}/publish-now`, { method: 'POST' });
+    toast('Post published to Threads!');
+    loadPosts();
+  } catch(e) {
+    toast('Failed to publish: ' + e.message, 'error');
+  }
+}
+
+async function deletePost(postId) {
+  if (!confirm('Delete this post?')) return;
+  try {
+    await api(`/api/posts/${postId}`, { method: 'DELETE' });
+    toast('Post deleted');
+    loadPosts();
+  } catch(e) {
+    toast('Failed to delete: ' + e.message, 'error');
+  }
+}
+
+async function refreshMetrics() {
+  toast('Refreshing metrics in background...');
+  try {
+    await api('/api/posts/refresh-metrics', { method: 'POST' });
+    toast('Metrics refresh started');
+  } catch(e) {
+    toast('Failed: ' + e.message, 'error');
+  }
+}
+
+// Content
+function switchTab(tab, btn) {
+  document.querySelectorAll('[id^="tab-"]').forEach(el => el.style.display = 'none');
+  document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
+  document.getElementById(`tab-${tab}`).style.display = 'block';
+  btn.classList.add('active');
+  if (tab === 'topics') loadTopics();
+}
+
+async function loadTopics() {
+  const container = document.getElementById('topics-container');
+  if (!container) return;
+  container.innerHTML = '<div class="loading"><div class="spinner"></div>Loading...</div>';
+
+  try {
+    const topics = await api('/api/content/topics?active_only=false');
+    if (!topics.length) {
+      container.innerHTML = '<div class="text-muted" style="padding: 20px 0;">No topics yet. Upload your content.md to get started.</div>';
+      return;
+    }
+    container.innerHTML = `<div class="posts-grid">${topics.map(t => `
+      <div class="post-card">
+        <div style="font-size: 11px; color: var(--muted); font-family: var(--mono); min-width: 60px; padding-top: 2px;">
+          P:${t.priority}<br>Used:${t.used_count}
+        </div>
+        <div>
+          <div style="font-weight: 700; margin-bottom: 4px;">${t.title}</div>
+          <div style="font-size: 12px; color: var(--accent);">${t.category || 'General'}</div>
+          <div style="font-size: 13px; color: var(--muted); margin-top: 6px;">${t.content}</div>
+        </div>
+        <div class="post-actions">
+          <span class="badge ${t.is_active ? 'published' : 'skipped'}">${t.is_active ? 'active' : 'inactive'}</span>
+          <button class="btn btn-danger btn-sm" onclick="deleteTopic(${t.id})">Remove</button>
+        </div>
+      </div>
+    `).join('')}</div>`;
+  } catch(e) {
+    container.innerHTML = `<div class="text-danger">Error: ${e.message}</div>`;
+  }
+}
+
+async function uploadMarkdown(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const form = new FormData();
+  form.append('file', file);
+  try {
+    const res = await fetch('/api/content/upload-markdown', { method: 'POST', body: form });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Upload failed');
+    toast(`✅ ${data.message}`);
+    loadTopics();
+  } catch(e) {
+    toast('Upload failed: ' + e.message, 'error');
+  }
+}
+
+async function reloadMarkdown() {
+  try {
+    const result = await api('/api/content/reload-markdown', { method: 'POST' });
+    toast(`✅ ${result.message}`);
+    loadTopics();
+  } catch(e) {
+    toast('Reload failed: ' + e.message, 'error');
+  }
+}
+
+async function createTopic() {
+  const title = document.getElementById('new-title').value.trim();
+  const content = document.getElementById('new-content').value.trim();
+  const category = document.getElementById('new-category').value.trim();
+  const priority = parseInt(document.getElementById('new-priority').value);
+  if (!title || !content) { toast('Title and content required', 'error'); return; }
+
+  try {
+    await api('/api/content/topics', { method: 'POST', body: JSON.stringify({ title, content, category, priority }) });
+    toast('Topic created!');
+    document.getElementById('new-title').value = '';
+    document.getElementById('new-content').value = '';
+  } catch(e) {
+    toast('Failed: ' + e.message, 'error');
+  }
+}
+
+async function deleteTopic(id) {
+  if (!confirm('Remove this topic?')) return;
+  try {
+    await api(`/api/content/topics/${id}`, { method: 'DELETE' });
+    toast('Topic removed');
+    loadTopics();
+  } catch(e) {
+    toast('Failed: ' + e.message, 'error');
+  }
+}
+
+// Analytics
+async function loadAnalytics() {
+  await Promise.all([loadLatestAnalysis(), loadAnalysisHistory()]);
+}
+
+async function loadLatestAnalysis() {
+  const container = document.getElementById('latest-analysis');
+  try {
+    const history = await api('/api/analytics/history');
+    if (!history.length) {
+      container.innerHTML = `
+        <div class="card" style="text-align:center; padding: 40px;">
+          <div style="font-size: 32px; margin-bottom: 12px;">🧠</div>
+          <div style="font-size: 16px; font-weight: 700; margin-bottom: 8px;">No analysis yet</div>
+          <div class="text-muted" style="font-size: 14px; margin-bottom: 20px;">Run your first AI analysis after a week of posting.</div>
+          <button class="btn btn-primary" onclick="runWeeklyAnalysis()">Run Analysis Now</button>
+        </div>`;
+      return;
+    }
+
+    const latest = history[0];
+    const a = latest.ai_analysis || {};
+    container.innerHTML = `
+      <div class="card">
+        <div class="card-title">Week ${latest.week_number} · ${latest.year} — AI Analysis</div>
+        <div class="three-col" style="margin-bottom: 20px;">
+          <div><div class="stat-label">Posts</div><div style="font-size: 22px; font-weight: 800;">${latest.total_posts}</div></div>
+          <div><div class="stat-label">Likes</div><div style="font-size: 22px; font-weight: 800;">${latest.total_likes}</div></div>
+          <div><div class="stat-label">Avg Engagement</div><div style="font-size: 22px; font-weight: 800;">${latest.avg_engagement_rate.toFixed(2)}%</div></div>
+        </div>
+
+        ${a.executive_summary ? `
+        <div class="analysis-section">
+          <h4>Executive Summary</h4>
+          <p>${a.executive_summary}</p>
+        </div>` : ''}
+
+        ${a.key_wins?.length ? `
+        <div class="analysis-section mt-16">
+          <h4>✅ Key Wins</h4>
+          <ul>${a.key_wins.map(w => `<li>${w}</li>`).join('')}</ul>
+        </div>` : ''}
+
+        ${a.key_issues?.length ? `
+        <div class="analysis-section mt-16">
+          <h4>⚠️ Issues to Address</h4>
+          <ul>${a.key_issues.map(i => `<li>${i}</li>`).join('')}</ul>
+        </div>` : ''}
+
+        ${a.content_recommendations?.length ? `
+        <div class="mt-16">
+          <div class="card-title">Recommendations</div>
+          ${a.content_recommendations.map((r, i) => `
+            <div class="recommendation">
+              <span class="rec-num">${i+1}</span>
+              <span>${r}</span>
+            </div>
+          `).join('')}
+        </div>` : ''}
+
+        ${a.next_week_strategy ? `
+        <div class="analysis-section mt-16">
+          <h4>📅 Next Week Strategy</h4>
+          <p>${a.next_week_strategy}</p>
+        </div>` : ''}
+
+        ${a.hashtag_analysis ? `
+        <div class="analysis-section mt-16">
+          <h4>#️⃣ Hashtag Analysis</h4>
+          <p>${a.hashtag_analysis}</p>
+        </div>` : ''}
+      </div>`;
+  } catch(e) {
+    container.innerHTML = `<div class="text-danger">Error: ${e.message}</div>`;
+  }
+}
+
+async function loadAnalysisHistory() {
+  const container = document.getElementById('analysis-history');
+  try {
+    const history = await api('/api/analytics/history');
+    if (!history.length) {
+      container.innerHTML = '<div class="text-muted" style="font-size: 14px; padding: 12px 0;">No past analyses</div>';
+      return;
+    }
+    container.innerHTML = history.map(h => `
+      <div style="display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--border); align-items: center;">
+        <div>
+          <div style="font-weight: 700;">Week ${h.week_number}, ${h.year}</div>
+          <div class="text-muted" style="font-size: 12px;">${h.total_posts} posts · ${fmt(h.total_likes)} likes · ${h.avg_engagement_rate.toFixed(1)}% engagement</div>
+        </div>
+        <div style="font-size: 12px; color: var(--muted); font-family: var(--mono);">${h.best_time || '—'}</div>
+      </div>
+    `).join('');
+  } catch(e) {
+    container.innerHTML = `<div class="text-danger">Error: ${e.message}</div>`;
+  }
+}
+
+async function runWeeklyAnalysis() {
+  const loadingDiv = document.getElementById('analysis-loading');
+  if (loadingDiv) loadingDiv.style.display = 'block';
+  try {
+    const result = await api('/api/analytics/analyze-week', { method: 'POST' });
+    toast('AI analysis complete!');
+    await loadAnalytics();
+  } catch(e) {
+    toast('Analysis failed: ' + e.message, 'error');
+  } finally {
+    if (loadingDiv) loadingDiv.style.display = 'none';
+  }
+}
+
+// Settings
+async function testConnection() {
+  const container = document.getElementById('connection-status');
+  if (!container) return;
+  container.innerHTML = '<div class="loading"><div class="spinner"></div>Testing connection...</div>';
+  try {
+    const result = await api('/api/posts/test-connection');
+    container.innerHTML = result.connected
+      ? `<div class="text-success" style="font-size: 14px;">✓ Connected · User ID: <code style="font-family:var(--mono)">${result.user_id}</code></div>`
+      : `<div class="text-danger" style="font-size: 14px;">✕ Not connected. Check your THREADS_ACCESS_TOKEN in .env</div>`;
+  } catch(e) {
+    container.innerHTML = `<div class="text-danger" style="font-size: 14px;">✕ Error: ${e.message}</div>`;
+  }
+}
+
+// Helpers
+function fmt(n) {
+  if (!n) return '0';
+  if (n >= 1000000) return (n/1000000).toFixed(1) + 'M';
+  if (n >= 1000) return (n/1000).toFixed(1) + 'K';
+  return n.toString();
+}
+
+function formatDate(dt) {
+  if (!dt) return '—';
+  return new Date(dt).toLocaleDateString('en-SG', { weekday: 'short', month: 'short', day: 'numeric' });
+}
+
+function formatTime(dt) {
+  if (!dt) return '';
+  return new Date(dt).toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit' });
+}
+
+// Init
+loadDashboard();
+</script>
+</body>
+</html>

@@ -1,0 +1,33 @@
+# Render deployment config — https://render.com
+# Free tier: Web Service (spins down after 15 min inactivity)
+# Use with cron-job.org to ping /health every 14 min to keep alive
+
+services:
+  - type: web
+    name: bussing-threads-scheduler
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PORT
+        value: 8000
+      - key: THREADS_APP_ID
+        sync: false
+      - key: THREADS_APP_SECRET
+        sync: false
+      - key: THREADS_ACCESS_TOKEN
+        sync: false
+      - key: THREADS_USER_ID
+        sync: false
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: OPENROUTER_MODEL
+        value: deepseek/deepseek-v4-pro
+      - key: TIMEZONE
+        value: Asia/Singapore
+      - key: MAX_POST_LENGTH
+        value: 500
+      - key: SECRET_KEY
+        generateValue: true
+    healthCheckPath: /health
+    plan: free
