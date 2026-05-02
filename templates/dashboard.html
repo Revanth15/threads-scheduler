@@ -222,6 +222,8 @@
     font-size: 14px;
     line-height: 1.5;
     color: var(--text);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
   }
 
   .post-topic {
@@ -236,6 +238,27 @@
     flex-direction: column;
     gap: 6px;
     align-items: flex-end;
+  }
+
+  @media (max-width: 860px) {
+    .post-card {
+      grid-template-columns: 1fr;
+      gap: 12px;
+    }
+
+    .post-time {
+      min-width: 0;
+    }
+
+    .post-actions {
+      align-items: flex-start;
+      flex-direction: row;
+      flex-wrap: wrap;
+    }
+
+    .post-metrics {
+      flex-wrap: wrap;
+    }
   }
 
   .badge {
@@ -804,6 +827,19 @@ function toast(msg, type = 'success') {
   setTimeout(() => el.remove(), 4000);
 }
 
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+
+function formatPostContent(value) {
+  return escapeHtml(value).replaceAll('\n', '<br>');
+}
+
 // API helper
 async function api(path, opts = {}) {
   const res = await fetch(API + path, {
@@ -895,8 +931,8 @@ async function loadPosts() {
         </div>
         <div>
           <span class="post-slot ${p.post_type}">${p.post_type}</span>
-          <div class="post-content">${p.content.substring(0, 200)}${p.content.length > 200 ? '…' : ''}</div>
-          <div class="post-topic">${p.topic || ''}</div>
+          <div class="post-content">${formatPostContent(p.content)}</div>
+          <div class="post-topic">${escapeHtml(p.topic || '')}</div>
           ${p.metrics ? `
           <div class="post-metrics">
             <div class="metric-item">❤️ <span>${p.metrics.likes}</span></div>

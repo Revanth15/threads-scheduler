@@ -6,7 +6,7 @@ Posts 3–5 times daily with AI-generated content: commuter jokes, product flexe
 
 ## Features
 
-- **AI Content Generation** — generates authentic, Singlish-flavored Threads posts using OpenRouter (DeepSeek / Claude / GPT)
+- **AI Content Generation** — generates authentic, Singlish-flavored Threads posts using OpenRouter
 - **5 Daily Time Slots** — morning commute (7:30am), midday (10am), lunch (12:30pm), evening commute (5:30pm), night (9pm) SGT
 - **Content Type Rotation** — automatically rotates between jokes, product flexes, founder updates, polls, and commentary
 - **Weekly Schedule Generation** — one-click generation of a full week's content (21–35 posts)
@@ -29,6 +29,7 @@ pip install -r requirements.txt
 # Configure
 cp .env.example .env
 # Edit .env with your Threads API + OpenRouter keys
+# Recommended model for post/schedule generation: openai/gpt-4o-mini
 
 # Run
 python -m app.main
@@ -112,7 +113,7 @@ Categories: Commuter Jokes, Product Flex, Founder Updates, Polls, Local Transpor
 
 See `.env.example` for all configuration options including:
 - Threads API credentials
-- OpenRouter AI model selection
+- OpenRouter AI model selection (`openai/gpt-4o-mini` recommended for structured text generation)
 - 5 configurable daily posting slots (disable any by setting hour to -1)
 - Timezone, post length limits, and more
 

@@ -77,8 +77,18 @@ class ThreadsClient:
             )
             data = response.json()
             if response.status_code != 200:
+                error_message = data.get("error", {}).get("message", "Unknown error")
+                if "Application does not have permission for this action" in error_message:
+                    error_message = (
+                        "Failed to fetch insights: Meta denied access to the insights endpoint. "
+                        "Your Threads access token must include `threads_manage_insights` "
+                        "(in addition to `threads_basic`), and the Threads account must be "
+                        "authorized for this app. If the app is still in Development mode, "
+                        "the account must be added as an app role/tester before generating "
+                        "a new access token."
+                    )
                 raise ThreadsAPIError(
-                    f"Failed to fetch insights: {data.get('error', {}).get('message', 'Unknown error')}",
+                    error_message,
                     response.status_code
                 )
             return self._parse_insights(data)

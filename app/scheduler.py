@@ -114,7 +114,11 @@ async def generate_weekly_schedule(week_offset: int = 0) -> dict:
         last_analysis = await get_latest_analysis(db)
 
         # Let AI plan the week
-        schedule_plan = await ai_client.generate_weekly_schedule(topics, last_analysis)
+        try:
+            schedule_plan = await ai_client.generate_weekly_schedule(topics, last_analysis)
+        except Exception as e:
+            logger.error(f"Failed to generate AI weekly schedule: {e}")
+            schedule_plan = ai_client._fallback_schedule(topics, posts_per_day)
 
         # Create a topic lookup
         topic_map = {t.id: t for t in topics}

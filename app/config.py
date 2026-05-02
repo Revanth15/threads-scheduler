@@ -11,7 +11,9 @@ class Settings(BaseSettings):
 
     # OpenRouter AI
     OPENROUTER_API_KEY: str = ""
-    OPENROUTER_MODEL: str = "deepseek/deepseek-v4-pro"
+    OPENROUTER_MODEL: str = "deepseek/deepseek-v4-flash"
+    # OPENROUTER_MODEL: str = "openai/gpt-4o-mini"
+    OPENROUTER_REASONING_MAX_TOKENS: int = 256
 
     # Scheduler — 5 daily posting slots (set hour to -1 to disable a slot)
     TIMEZONE: str = "Asia/Singapore"
